@@ -54,6 +54,11 @@ A Chrome extension to manage your ChatGPT conversations efficiently. Delete mult
 7. ZIP file automatically downloads
 8. Extract to access all conversations as text files
 
+Export Screenshot:
+
+<img width="610" height="213" alt="image" src="https://github.com/user-attachments/assets/8876db33-1f0c-4f8f-83b1-f180282d55ec" />
+
+
 ## Technical Details
 
 ### How It Works
