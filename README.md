@@ -1,6 +1,11 @@
 # ChatGPT Mass Delete/Export Chats
 
-A powerful Chrome extension to manage your ChatGPT conversations efficiently. Delete multiple conversations in bulk or export them to ZIP files for backup.
+A Chrome extension to manage your ChatGPT conversations efficiently. Delete multiple conversations in bulk or export them to ZIP files for backup.
+
+## Screenshot
+
+<img width="1343" height="715" alt="image" src="https://github.com/user-attachments/assets/bcfe9151-b5a8-4d4a-b68f-a54872b96757" />
+
 
 ## Features
 
