@@ -1,6 +1,11 @@
 # ChatGPT Mass Delete/Export Chats
 
-A powerful Chrome extension to manage your ChatGPT conversations efficiently. Delete multiple conversations in bulk or export them to ZIP files for backup.
+A Chrome extension to manage your ChatGPT conversations efficiently. Delete multiple conversations in bulk or export them to ZIP files for backup.
+
+## Screenshot
+
+<img width="1343" height="715" alt="image" src="https://github.com/user-attachments/assets/bcfe9151-b5a8-4d4a-b68f-a54872b96757" />
+
 
 ## Features
 
@@ -49,21 +54,26 @@ A powerful Chrome extension to manage your ChatGPT conversations efficiently. De
 7. ZIP file automatically downloads
 8. Extract to access all conversations as text files
 
+Export Screenshot:
+
+<img width="610" height="213" alt="image" src="https://github.com/user-attachments/assets/8876db33-1f0c-4f8f-83b1-f180282d55ec" />
+
+
 ## Technical Details
 
 ### How It Works
 
 #### Delete Method
 - **Primary**: ChatGPT backend API (`/backend-api/conversation/{id}`)
-  - Sends PATCH request with `{is_visible: false}`
-  - Speed: 50-100ms per conversation
-  - Requires valid authentication token
+    - Sends PATCH request with `{is_visible: false}`
+    - Speed: 50-100ms per conversation
+    - Requires valid authentication token
 
 - **Fallback**: UI-based deletion via DOM automation
-  - Simulates right-click menu interaction
-  - Clicks "Delete" button
-  - Speed: 500-800ms per conversation
-  - Works even if API fails
+    - Simulates right-click menu interaction
+    - Clicks "Delete" button
+    - Speed: 500-800ms per conversation
+    - Works even if API fails
 
 #### Export Method
 - **Retrieves content** from ChatGPT API (`/backend-api/conversation/{id}`)
@@ -162,8 +172,7 @@ The extension **only** communicates with ChatGPT servers. No data is sent elsewh
 
 ## Support
 
-For issues or feature requests:
-- Contact: jarosciak@gmail.com
+For issues or feature requests use https://github.com/JozefJarosciak/chatgpt-mass-delete-export/issues
 
 ## License
 
@@ -172,5 +181,4 @@ MIT License - Free to use and modify
 ---
 
 **Version**: 1.0.0
-**Author**: jarosciak@gmail.com
-**Last Updated**: November 2024
+**Last Updated**: November 2025
