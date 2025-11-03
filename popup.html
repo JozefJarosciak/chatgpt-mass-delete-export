@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatGPT Mass Delete/Export Chats - by jarosciak@gmail.com</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            width: 500px;
+            background: #ffffff;
+            color: #333;
+        }
+
+        .container {
+            padding: 0;
+        }
+
+        h1 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #000;
+            padding: 15px 15px 0 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #headingIcon {
+            font-size: 20px;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        #headingIcon:hover {
+            transform: scale(1.1);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #ddd;
+            background: #fafafa;
+            padding: 0 15px;
+            margin-bottom: 15px;
+        }
+
+        .tab-button {
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #999;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-button:hover {
+            color: #666;
+        }
+
+        .tab-button.active {
+            color: #10a37f;
+            border-bottom-color: #10a37f;
+        }
+
+        .tab-button::before {
+            font-size: 16px;
+        }
+
+        .tab-button[data-tab="delete-tab"]::before {
+            content: '🗑️';
+        }
+
+        .tab-button[data-tab="export-tab"]::before {
+            content: '📦';
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .header-section {
+            margin-bottom: 15px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-group button {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .delete-btn {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .delete-btn:hover:not(:disabled) {
+            background: #b71c1c;
+        }
+
+        .delete-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .secondary-btn {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .secondary-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .status-box {
+            background: #f5f5f5;
+            border-left: 4px solid #10a37f;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .status-box.error {
+            background: #f8d7da;
+            border-left-color: #d32f2f;
+            color: #721c24;
+        }
+
+        .status-box.success {
+            background: #d4edda;
+            border-left-color: #10a37f;
+            color: #155724;
+        }
+
+        .status-box.loading {
+            background: #d1ecf1;
+            border-left-color: #0c5460;
+            color: #0c5460;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .warning strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .conversations-container {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            max-height: 350px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            background: #fafafa;
+        }
+
+        .conversation-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .conversation-item:hover {
+            background: #f0f0f0;
+        }
+
+        .conversation-item:last-child {
+            border-bottom: none;
+        }
+
+        .conversation-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .conversation-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .empty-message {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .controls button {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+            margin-bottom: 0;
+        }
+
+        .selected-count {
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+
+        .progress {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #10a37f;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #10a37f;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span id="headingIcon">🗑️</span> ChatGPT Mass Delete/Export</h1>
+
+        <!-- TAB NAVIGATION -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="delete-tab">Delete</button>
+            <button class="tab-button" data-tab="export-tab">Export</button>
+        </div>
+
+        <!-- DELETE TAB CONTENT -->
+        <div id="delete-tab" class="tab-content active">
+            <!-- STATUS BOX -->
+            <div id="pageStatus" class="status-box loading">
+                <span class="loading-spinner"></span>Loading conversations...
+            </div>
+
+            <!-- CONVERSATIONS LIST -->
+            <div id="conversationsContainer" class="conversations-container">
+                <div class="empty-message">Loading your conversations...</div>
+            </div>
+
+            <!-- SELECTED COUNT -->
+            <div id="selectedCount" class="selected-count" style="display: none;">
+                0 conversations selected
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="controls">
+                <button id="selectAllBtn" class="secondary-btn">Select All</button>
+                <button id="selectNoneBtn" class="secondary-btn">Select None</button>
+            </div>
+
+            <!-- WARNING -->
+            <div class="warning">
+                <strong>⚠️ Warning:</strong>
+                Deleted conversations cannot be recovered. This action is permanent.
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="btn-group">
+                <button id="deleteBtn" class="delete-btn">Delete Selected</button>
+                <button id="refreshBtn" class="secondary-btn">Refresh</button>
+            </div>
+
+            <!-- STATUS MESSAGE -->
+            <div id="status" class="status-box" style="display: none;"></div>
+
+            <!-- PROGRESS -->
+            <div id="progress" class="progress">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill">0%</div>
+                </div>
+                <div class="progress-text">
+                    <span id="progressText">Deleting...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- EXPORT TAB CONTENT -->
+        <div id="export-tab" class="tab-content">
+            <!-- STATUS BOX -->
+            <div id="exportPageStatus" class="status-box loading">
+                <span class="loading-spinner"></span>Loading conversations...
+            </div>
+
+            <!-- CONVERSATIONS LIST -->
+            <div id="exportConversationsContainer" class="conversations-container">
+                <div class="empty-message">Loading your conversations...</div>
+            </div>
+
+            <!-- SELECTED COUNT -->
+            <div id="exportSelectedCount" class="selected-count" style="display: none;">
+                0 conversations selected
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="controls">
+                <button id="exportSelectAllBtn" class="secondary-btn">Select All</button>
+                <button id="exportSelectNoneBtn" class="secondary-btn">Select None</button>
+            </div>
+
+            <!-- WARNING -->
+            <div class="warning">
+                <strong>ℹ️ Note:</strong>
+                This will download a ZIP file containing all selected conversations as text files.
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="btn-group">
+                <button id="exportBtn" class="secondary-btn" style="background: #10a37f; color: white;">Export as ZIP</button>
+                <button id="exportRefreshBtn" class="secondary-btn">Refresh</button>
+            </div>
+
+            <!-- STATUS MESSAGE -->
+            <div id="exportStatus" class="status-box" style="display: none;"></div>
+
+            <!-- PROGRESS -->
+            <div id="exportProgress" class="progress">
+                <div class="progress-bar">
+                    <div id="exportProgressFill" class="progress-fill">0%</div>
+                </div>
+                <div class="progress-text">
+                    <span id="exportProgressText">Exporting...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="jszip.min.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>
