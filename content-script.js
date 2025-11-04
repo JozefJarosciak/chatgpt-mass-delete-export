@@ -86,66 +86,39 @@ window.fetch = function(...args) {
     const url = String(args[0]);
     const initObj = args[1];
 
-    // Log backend API calls for debugging
-    if (url.includes('backend-api') || url.includes('conversation')) {
-        console.log('[FETCH] Backend API request detected');
-    }
-
     // Try to capture token from outgoing requests
     if (initObj) {
         let auth = null;
 
-        // Method 1: Direct headers object with lowercase key
+        // Check various header formats
         if (initObj.headers) {
             if (typeof initObj.headers === 'object' && !initObj.headers.get) {
-                auth = initObj.headers.authorization;
-            }
-        }
-
-        // Method 2: Try uppercase Authorization
-        if (!auth && initObj.headers && typeof initObj.headers === 'object') {
-            auth = initObj.headers.Authorization;
-        }
-
-        // Method 3: If headers is a Headers object, try get()
-        if (!auth && initObj.headers && typeof initObj.headers.get === 'function') {
-            auth = initObj.headers.get('authorization');
-            if (!auth) {
-                auth = initObj.headers.get('Authorization');
-            }
-        }
-
-        // Method 4: If headers is a Headers object, iterate entries
-        if (!auth && initObj.headers && typeof initObj.headers[Symbol.iterator] === 'function') {
-            try {
-                for (const [key, value] of initObj.headers) {
-                    if (key.toLowerCase() === 'authorization') {
-                        auth = value;
-                        break;
+                auth = initObj.headers.authorization || initObj.headers.Authorization;
+            } else if (typeof initObj.headers.get === 'function') {
+                auth = initObj.headers.get('authorization') || initObj.headers.get('Authorization');
+            } else if (typeof initObj.headers[Symbol.iterator] === 'function') {
+                try {
+                    for (const [key, value] of initObj.headers) {
+                        if (key.toLowerCase() === 'authorization') {
+                            auth = value;
+                            break;
+                        }
                     }
-                }
-            } catch (e) {}
+                } catch (e) {}
+            }
         }
 
-        // If we found a token, store it (prefer Bearer tokens)
+        // Store token if found
         if (auth && !capturedTokens.has(auth)) {
             authToken = auth;
             capturedTokens.add(auth);
-
-            // Log with details
-            if (auth.includes('Bearer') || auth.startsWith('eyJ')) {
-                console.log('[TOKEN] ✓ Captured from fetch: Bearer token');
-                console.log('[TOKEN] Token starts with: ' + auth.substring(0, 30) + '...');
-            } else {
-                console.log('[TOKEN] ✓ Captured from fetch (non-Bearer): ' + auth.substring(0, 30) + '...');
-            }
         }
     }
 
     // Make the actual fetch call
     const result = originalFetch.apply(this, args);
 
-    // Also try to capture from response headers
+    // Try to capture from response headers
     if (result && typeof result.then === 'function') {
         result.then(response => {
             if (response && typeof response.headers === 'object') {
@@ -154,7 +127,6 @@ window.fetch = function(...args) {
                     if (authHeader && !capturedTokens.has(authHeader)) {
                         authToken = authHeader;
                         capturedTokens.add(authHeader);
-                        console.log('[TOKEN] ✓ Captured from response headers');
                     }
                 } catch (e) {}
             }
@@ -173,45 +145,27 @@ XMLHttpRequest.prototype.open = function(method, url, ...rest) {
     this._requestURL = url;
     this._requestMethod = method;
     this._requestHeaders = {};
-
-    // Log backend API calls
-    if (String(url).includes('backend-api') || String(url).includes('conversation')) {
-        console.log('[XHR] Request to backend API');
-    }
-
     return originalXHROpen.apply(this, [method, url, ...rest]);
 };
 
 XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
-    // Capture authorization headers
-    if (header.toLowerCase() === 'authorization') {
-        if (!capturedTokens.has(value)) {
-            authToken = value;
-            capturedTokens.add(value);
-            console.log('[TOKEN] ✓ Captured from XHR setRequestHeader');
-            console.log('[TOKEN] Token preview: ' + value.substring(0, 50) + '...');
-        }
+    if (header.toLowerCase() === 'authorization' && !capturedTokens.has(value)) {
+        authToken = value;
+        capturedTokens.add(value);
     }
-
     this._requestHeaders = this._requestHeaders || {};
     this._requestHeaders[header] = value;
-
     return originalSetRequestHeader.apply(this, [header, value]);
 };
 
-// Also intercept send to capture headers that might be added
 XMLHttpRequest.prototype.send = function(data) {
-    // Try to find authorization header in request
     if (this._requestHeaders && this._requestHeaders['authorization']) {
         const authValue = this._requestHeaders['authorization'];
         if (!capturedTokens.has(authValue)) {
             authToken = authValue;
             capturedTokens.add(authValue);
-            console.log('[TOKEN] ✓ Captured from XHR send');
         }
     }
-
-    // Continue with original send
     return originalXHRSend.apply(this, arguments);
 };
 
@@ -245,15 +199,11 @@ function extractAuthToken() {
 
                 if (name.toLowerCase().includes(priorityName.toLowerCase())) {
                     const decodedValue = decodeURIComponent(value);
-
-                    // Accept if it looks like a token (long, has dots or eyJ prefix)
                     if ((decodedValue.length > 50 && decodedValue.includes('.')) ||
                         decodedValue.startsWith('eyJ')) {
                         if (!capturedTokens.has(decodedValue)) {
                             authToken = decodedValue;
                             capturedTokens.add(decodedValue);
-                            console.log('[TOKEN] ✓ Found token in cookie: ' + name);
-                            console.log('[TOKEN] Token preview: ' + decodedValue.substring(0, 40) + '...');
                             return authToken;
                         }
                     }
@@ -261,75 +211,44 @@ function extractAuthToken() {
             }
         }
 
-        // Second pass: Look for any cookie with a token-like value (long, has dots, starts with eyJ)
+        // Second pass: Look for any cookie with a token-like value
         for (const cookie of cookies) {
             const [name, value] = cookie.trim().split('=');
             if (!name || !value) continue;
 
             const decodedValue = decodeURIComponent(value);
-
-            // Look for any long value with dots (could be JWT or session token)
-            if (decodedValue.length > 80 && decodedValue.includes('.')) {
+            if ((decodedValue.length > 80 && decodedValue.includes('.')) ||
+                (decodedValue.startsWith('eyJ') && decodedValue.length > 50)) {
                 if (!capturedTokens.has(decodedValue)) {
                     authToken = decodedValue;
                     capturedTokens.add(decodedValue);
-                    console.log('[TOKEN] ✓ Found potential token in cookie: ' + name);
-                    console.log('[TOKEN] Cookie name: ' + name + ', Length: ' + decodedValue.length);
-                    return authToken;
-                }
-            }
-
-            // Look for eyJ prefix (JWT tokens)
-            if (decodedValue.startsWith('eyJ') && decodedValue.length > 50) {
-                if (!capturedTokens.has(decodedValue)) {
-                    authToken = decodedValue;
-                    capturedTokens.add(decodedValue);
-                    console.log('[TOKEN] ✓ Found JWT in cookie: ' + name);
                     return authToken;
                 }
             }
         }
     } catch (e) {
-        console.log('[TOKEN] Could not parse cookies');
+        // Silent fail - cookies not accessible
     }
 
     // Try to find token in common React/Next.js locations
     try {
-        const tokenKeys = [
-            '__INITIAL_STATE__',
-            '__data',
-            '__NEXT_DATA__',
-            '__NUXT__',
-            '_user',
-            'user',
-            'auth',
-            'token',
-            '_auth'
-        ];
-
+        const tokenKeys = ['__INITIAL_STATE__', '__data', '__NEXT_DATA__', '__NUXT__', '_user', 'user', 'auth', 'token', '_auth'];
         for (const key of tokenKeys) {
             if (window[key]) {
                 try {
                     const tokenStr = JSON.stringify(window[key]);
-
-                    // Look for JWT tokens (Bearer followed by eyJ...)
                     const tokenMatch = tokenStr.match(/bearer\s+eyJ[a-zA-Z0-9_\-]+/i);
                     if (tokenMatch && !capturedTokens.has(tokenMatch[0])) {
                         authToken = tokenMatch[0];
                         capturedTokens.add(authToken);
-                        console.log('[TOKEN] ✓ Found Bearer token in window.' + key);
                         return authToken;
                     }
-
-                    // Also look for just JWT tokens
                     const jwtMatch = tokenStr.match(/(eyJ[a-zA-Z0-9_\-\.]+)/g);
                     if (jwtMatch) {
                         for (const jwt of jwtMatch) {
                             if (jwt.split('.').length === 3 && !capturedTokens.has(jwt)) {
-                                // Likely a valid JWT
                                 authToken = jwt;
                                 capturedTokens.add(jwt);
-                                console.log('[TOKEN] ✓ Found JWT in window.' + key);
                                 return authToken;
                             }
                         }
@@ -337,66 +256,21 @@ function extractAuthToken() {
                 } catch (e) {}
             }
         }
-    } catch (e) {
-        console.log('[TOKEN] Could not scan window object');
-    }
+    } catch (e) {}
 
-    // Try localStorage keys
+    // Try localStorage/sessionStorage
     try {
-        const keys = [
-            'auth_token',
-            'token',
-            'session',
-            'access_token',
-            '_auth',
-            'bearer',
-            '__auth__',
-            'openai_session',
-            'jwt'
-        ];
-
+        const keys = ['auth_token', 'token', 'session', 'access_token', '_auth', 'bearer', '__auth__', 'openai_session', 'jwt'];
         for (const key of keys) {
-            const stored = localStorage.getItem(key);
+            const stored = localStorage.getItem(key) || sessionStorage.getItem(key);
             if (stored && !capturedTokens.has(stored)) {
                 authToken = stored;
                 capturedTokens.add(stored);
-                console.log('[TOKEN] ✓ Found in localStorage.' + key);
                 return authToken;
             }
         }
-    } catch (e) {
-        console.log('[TOKEN] Could not access localStorage');
-    }
+    } catch (e) {}
 
-    // Try sessionStorage keys
-    try {
-        const keys = [
-            'auth_token',
-            'token',
-            'session',
-            'access_token',
-            '_auth',
-            'bearer',
-            '__auth__',
-            'openai_session',
-            'jwt'
-        ];
-
-        for (const key of keys) {
-            const stored = sessionStorage.getItem(key);
-            if (stored && !capturedTokens.has(stored)) {
-                authToken = stored;
-                capturedTokens.add(stored);
-                console.log('[TOKEN] ✓ Found in sessionStorage.' + key);
-                return authToken;
-            }
-        }
-    } catch (e) {
-        console.log('[TOKEN] Could not access sessionStorage');
-    }
-
-    console.log('[TOKEN] [extractAuthToken] ✗ No token found in any source');
-    console.log('[TOKEN] [extractAuthToken] Checked: cookies, window state, localStorage, sessionStorage');
     return null;
 }
 
@@ -434,10 +308,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'getConversationContent') {
         getConversationContent(request.conversationId)
             .then(result => {
-                sendResponse({ success: true, title: result.title, content: result.content });
+                sendResponse({
+                    success: true,
+                    title: result.title,
+                    messages: result.messages,
+                    imageUrls: result.imageUrls
+                });
             })
             .catch(error => {
                 console.error(`[MESSAGE] ✗ Content fetch error: ${error.message}`);
+                sendResponse({ success: false, error: error.message });
+            });
+        return true;
+    }
+
+    if (request.action === 'downloadImage') {
+        downloadImage(request.fileId, request.fileName, request.conversationId)
+            .then(result => {
+                // Convert ArrayBuffer to Array for Chrome message passing
+                // (ArrayBuffer is not JSON-serializable)
+                const uint8Array = new Uint8Array(result.arrayBuffer);
+                const dataArray = Array.from(uint8Array);
+
+                sendResponse({
+                    success: true,
+                    dataArray: dataArray,  // Send as regular Array instead of ArrayBuffer
+                    filename: result.filename,
+                    mimeType: result.mimeType
+                });
+            })
+            .catch(error => {
+                // Use warn for expected failures (422 errors for files not in DOM)
+                if (error.message.includes('422')) {
+                    console.warn(`[MESSAGE] ⚠️ File download skipped: ${error.message}`);
+                } else {
+                    console.error(`[MESSAGE] ✗ Image download error: ${error.message}`);
+                }
                 sendResponse({ success: false, error: error.message });
             });
         return true;
@@ -521,22 +427,112 @@ async function getConversationContent(conversationId) {
 
                 if (response.ok) {
                     const data = await response.json();
+
                     if (data.title && data.mapping) {
                         // Extract all messages from the conversation
                         const messages = [];
+                        const imageUrls = [];
+
                         for (const msgId in data.mapping) {
                             const item = data.mapping[msgId];
-                            if (item.message && item.message.content && item.message.content.parts) {
+                            if (item.message && item.message.content) {
                                 const role = item.message.author.role;
-                                const text = item.message.content.parts.join('\n');
-                                if (text.trim()) {
-                                    messages.push(`[${role.toUpperCase()}]\n${text}`);
+                                const content = item.message.content;
+                                let text = '';
+                                const msgImages = [];
+
+                                // Extract text and file attachments from parts
+                                if (content.parts && Array.isArray(content.parts)) {
+                                    const textParts = [];
+                                    content.parts.forEach((part, partIndex) => {
+                                        if (typeof part === 'string') {
+                                            // Text content
+                                            textParts.push(part);
+                                        } else if (typeof part === 'object' && part !== null) {
+                                            // File attachment (image, document, code file, etc.)
+                                            let fileId = null;
+                                            let fileName = null;
+                                            let mimeType = null;
+
+                                            // Extract file ID from various formats
+                                            if (part.asset_pointer) {
+                                                fileId = part.asset_pointer.replace('file-', '').replace('sediment://', '');
+                                            } else if (part.file_id) {
+                                                fileId = part.file_id;
+                                            } else if (part.image_url) {
+                                                fileId = part.image_url;
+                                            }
+
+                                            // Get file metadata
+                                            fileName = part.name;
+                                            mimeType = part.mimeType || part.mime_type;
+
+                                            // Add file to attachments
+                                            if (fileId) {
+                                                msgImages.push({
+                                                    fileId: fileId,
+                                                    fileName: fileName,
+                                                    mimeType: mimeType,
+                                                    contentType: part.content_type,
+                                                    conversationId: conversationId
+                                                });
+                                                imageUrls.push(fileId);
+                                            }
+                                        }
+                                    });
+                                    text = textParts.join('\n');
+                                }
+
+                                // Check metadata for all attachments (that weren't already in parts)
+                                if (item.message.metadata) {
+                                    const metadata = item.message.metadata;
+                                    if (metadata.attachments && Array.isArray(metadata.attachments)) {
+                                        // Get existing file IDs to avoid duplicates
+                                        const existingFileIds = new Set(msgImages.map(img => img.fileId));
+
+                                        metadata.attachments.forEach(attachment => {
+                                            if (attachment.id && !existingFileIds.has(attachment.id)) {
+                                                msgImages.push({
+                                                    fileId: attachment.id,
+                                                    fileName: attachment.name || attachment.filename,
+                                                    mimeType: attachment.mimeType || attachment.mime_type,
+                                                    contentType: attachment.content_type,
+                                                    conversationId: conversationId
+                                                });
+                                                imageUrls.push(attachment.id);
+                                            }
+                                        });
+                                    }
+                                }
+
+                                if (text.trim() || msgImages.length > 0) {
+                                    // Deduplicate images within this message
+                                    const uniqueMsgImages = [];
+                                    const seenFileIds = new Set();
+
+                                    for (const img of msgImages) {
+                                        if (!seenFileIds.has(img.fileId)) {
+                                            uniqueMsgImages.push(img);
+                                            seenFileIds.add(img.fileId);
+                                        }
+                                    }
+
+                                    messages.push({
+                                        role: role.toUpperCase(),
+                                        text: text,
+                                        images: uniqueMsgImages
+                                    });
                                 }
                             }
                         }
+
+                        const uniqueImageUrls = Array.from(new Set(imageUrls));
+                        console.log(`[EXTRACT] Extracted ${messages.length} messages, ${uniqueImageUrls.length} files`);
+
                         return {
                             title: data.title,
-                            content: messages.join('\n\n---\n\n')
+                            messages: messages,
+                            imageUrls: uniqueImageUrls
                         };
                     }
                 }
@@ -560,27 +556,47 @@ async function getConversationContent(conversationId) {
         const title = document.querySelector('[class*="title"]')?.textContent?.trim() || `Conversation_${conversationId}`;
 
         const messages = [];
+        const imageUrls = [];
         const messageElements = document.querySelectorAll('[class*="message"], [role="article"]');
 
         messageElements.forEach(el => {
             const text = el.innerText?.trim();
-            if (text && text.length > 0) {
-                messages.push(text);
+            const msgImages = [];
+
+            // Extract images from the message element
+            const images = el.querySelectorAll('img');
+            images.forEach(img => {
+                if (img.src && !img.src.includes('data:image')) {
+                    imageUrls.push(img.src);
+                    msgImages.push(img.src);
+                }
+            });
+
+            if ((text && text.length > 0) || msgImages.length > 0) {
+                messages.push({
+                    role: 'UNKNOWN',
+                    text: text || '',
+                    images: msgImages
+                });
             }
         });
 
-        const content = messages.join('\n\n---\n\n');
-
         return {
             title: title.substring(0, 100),
-            content: content || 'No content found'
+            messages: messages,
+            imageUrls: Array.from(new Set(imageUrls))
         };
 
     } catch (error) {
         console.error(`[CONTENT] Failed to get conversation content: ${error.message}`);
         return {
             title: `Conversation_${conversationId}`,
-            content: `Error retrieving content: ${error.message}`
+            messages: [{
+                role: 'ERROR',
+                text: `Error retrieving content: ${error.message}`,
+                images: []
+            }],
+            imageUrls: []
         };
     }
 }
@@ -734,6 +750,254 @@ async function deleteConversation(conversationId) {
         return true;
     } catch (error) {
         console.error(`[DELETE] ✗ Failed to delete ${conversationId}: ${error.message}`);
+        throw error;
+    }
+}
+
+// Download file with authentication (images, documents, code files, etc.)
+async function downloadImage(fileId, fileName = null, conversationId = null) {
+    try {
+        console.log(`[FILE] Attempting to download: ${fileName || fileId}...`);
+
+        // First, try to find the actual file URL from the DOM (includes signature)
+        let fileUrl = null;
+
+        // Search in img tags (for images)
+        const images = document.querySelectorAll('img');
+        console.log(`[FILE] Searching ${images.length} img tags for ${fileId}...`);
+        for (const img of images) {
+            if (img.src && img.src.includes(fileId)) {
+                fileUrl = img.src;
+                console.log(`[FILE] ✓ Found in img tag: ${fileUrl.substring(0, 100)}...`);
+                break;
+            }
+        }
+
+        // Search in anchor/link tags (for downloadable files like PDFs, documents, etc.)
+        if (!fileUrl) {
+            const links = document.querySelectorAll('a[href*="estuary"], a[download], a[href*="' + fileId + '"]');
+            console.log(`[FILE] Searching ${links.length} anchor tags...`);
+            for (const link of links) {
+                if (link.href && link.href.includes(fileId)) {
+                    fileUrl = link.href;
+                    console.log(`[FILE] ✓ Found in anchor tag: ${fileUrl.substring(0, 100)}...`);
+                    break;
+                }
+            }
+        }
+
+        // Search in button/div elements (file download buttons)
+        if (!fileUrl) {
+            const buttons = document.querySelectorAll('button, div[role="button"], [class*="download"]');
+            for (const btn of buttons) {
+                const onclick = btn.getAttribute('onclick') || '';
+                const dataFile = btn.getAttribute('data-file') || btn.getAttribute('data-file-id') || '';
+                const ariaLabel = btn.getAttribute('aria-label') || '';
+
+                if (onclick.includes(fileId) || dataFile.includes(fileId) || ariaLabel.includes(fileId)) {
+                    const parent = btn.closest('[data-testid*="file"], [class*="attachment"]');
+                    if (parent) {
+                        const parentLinks = parent.querySelectorAll('a[href*="estuary"]');
+                        for (const link of parentLinks) {
+                            if (link.href.includes(fileId)) {
+                                fileUrl = link.href;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (fileUrl) break;
+            }
+        }
+
+        // Search all elements for data attributes that might contain file info
+        if (!fileUrl) {
+            const allElements = document.querySelectorAll('[data-file-id], [data-testid*="file"], [class*="file-"], [class*="attachment"]');
+            for (const elem of allElements) {
+                const attrs = elem.attributes;
+                for (let i = 0; i < attrs.length; i++) {
+                    const attr = attrs[i];
+                    if (attr.value && attr.value.includes(fileId)) {
+                        const nearbyLinks = elem.querySelectorAll('a[href*="estuary"]');
+                        for (const link of nearbyLinks) {
+                            if (link.href) {
+                                fileUrl = link.href;
+                                break;
+                            }
+                        }
+                        if (fileUrl) break;
+                    }
+                }
+                if (fileUrl) break;
+            }
+        }
+
+        // If file not found, try to programmatically open it to load the signed URL
+        if (!fileUrl) {
+            console.log(`[FILE] Triggering preview for ${fileName || fileId}...`);
+
+            const fileButtons = document.querySelectorAll('button, a, div[role="button"], [class*="attachment"]');
+            for (const btn of fileButtons) {
+                const text = btn.textContent || '';
+                const ariaLabel = btn.getAttribute('aria-label') || '';
+                const title = btn.getAttribute('title') || '';
+
+                // Check if this button/link relates to our file
+                const matchesFileName = fileName && (text.includes(fileName) || ariaLabel.includes(fileName) || title.includes(fileName));
+                const matchesFileType = text.toLowerCase().includes('.pdf') || text.toLowerCase().includes('.docx') ||
+                    text.toLowerCase().includes('.doc') || text.toLowerCase().includes('.pptx');
+                const matchesFileId = ariaLabel.includes(fileId) || title.includes(fileId);
+
+                if (matchesFileName || matchesFileType || matchesFileId) {
+                    btn.click();
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    // Try searching for the URL again
+                    const newImages = document.querySelectorAll('img');
+                    for (const img of newImages) {
+                        if (img.src && img.src.includes(fileId)) {
+                            fileUrl = img.src;
+                            break;
+                        }
+                    }
+
+                    // Also check iframe sources (PDFs often load in iframes)
+                    if (!fileUrl) {
+                        const iframes = document.querySelectorAll('iframe');
+                        for (const iframe of iframes) {
+                            if (iframe.src && iframe.src.includes(fileId)) {
+                                fileUrl = iframe.src;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (fileUrl) break;
+                }
+            }
+        }
+
+        // Fallback: construct URL with conversation ID and auth token
+        if (!fileUrl) {
+            // Determine file type parameter based on fileName or mimeType
+            let fileParam = 'fs'; // default for images/files
+
+            if (fileName) {
+                const lowerName = fileName.toLowerCase();
+                if (lowerName.endsWith('.pdf') || lowerName.endsWith('.doc') ||
+                    lowerName.endsWith('.docx') || lowerName.endsWith('.pptx')) {
+                    fileParam = 'fsns'; // for documents/PDFs
+                }
+            }
+
+            // Construct URL with conversation ID if available
+            if (conversationId) {
+                fileUrl = `https://chatgpt.com/backend-api/conversation/${conversationId}/download/${fileId}`;
+            } else {
+                fileUrl = `https://chatgpt.com/backend-api/estuary/content?id=${fileId}&p=${fileParam}`;
+            }
+        }
+
+        // Ensure we have auth token for fallback
+        if (!authToken) {
+            extractAuthToken();
+        }
+
+        const headers = {};
+
+        // Add authorization if available (for fallback method)
+        if (authToken) {
+            let finalToken = authToken;
+            if (!authToken.includes('Bearer') && authToken.startsWith('eyJ')) {
+                finalToken = 'Bearer ' + authToken;
+            }
+            headers['Authorization'] = finalToken;
+        }
+
+        const response = await fetch(fileUrl, {
+            method: 'GET',
+            headers: headers,
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // Detect file type from magic numbers if content-type is generic
+        let contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+        // If content-type is generic, detect from file signature (magic numbers)
+        if (contentType === 'application/octet-stream' || contentType === 'binary/octet-stream') {
+            const bytes = new Uint8Array(arrayBuffer.slice(0, 12));
+
+            // Check magic numbers for common image formats
+            if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+                contentType = 'image/jpeg';
+            } else if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+                contentType = 'image/png';
+            } else if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+                contentType = 'image/gif';
+            } else if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+                // RIFF container, check for WEBP
+                if (bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+                    contentType = 'image/webp';
+                }
+            } else if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+                contentType = 'application/pdf';
+            }
+        }
+
+        // Map content type to extension
+        const mimeToExt = {
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            'text/plain': 'txt',
+            'text/markdown': 'md',
+            'text/html': 'html',
+            'text/css': 'css',
+            'text/javascript': 'js',
+            'text/x-python': 'py',
+            'text/x-java': 'java',
+            'text/x-c': 'c',
+            'text/x-c++': 'cpp',
+            'text/x-csharp': 'cs',
+            'text/x-golang': 'go',
+            'text/x-php': 'php',
+            'text/x-ruby': 'rb',
+            'text/x-tex': 'tex',
+            'application/typescript': 'ts',
+            'application/json': 'json',
+            'application/pdf': 'pdf',
+            'application/msword': 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+            'application/x-sh': 'sh'
+        };
+
+        let extension = mimeToExt[contentType] || 'bin';
+
+        const filename = `${fileId}.${extension}`;
+        console.log(`[FILE] ✓ Downloaded: ${fileName || filename} (${(arrayBuffer.byteLength / 1024).toFixed(1)}KB)`);
+
+        return {
+            arrayBuffer: arrayBuffer,
+            filename: filename,
+            mimeType: contentType
+        };
+
+    } catch (error) {
+        if (error.message.includes('422')) {
+            console.warn(`[FILE] ⚠️ ${fileName || fileId} not available (not loaded in page)`);
+        } else {
+            console.error(`[FILE] ✗ Download failed: ${error.message}`);
+        }
         throw error;
     }
 }

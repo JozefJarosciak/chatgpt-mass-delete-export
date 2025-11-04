@@ -5,7 +5,8 @@
   "description": "Delete and export your ChatGPT conversations in bulk. Batch delete conversations or export them to ZIP files with all text content.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

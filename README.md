@@ -19,8 +19,12 @@ A Chrome extension to manage your ChatGPT conversations efficiently. Delete mult
 
 ### 📦 Export Tab
 - **Batch Export**: Export multiple conversations to a single ZIP file
+- **HTML Format**: Each conversation saved as a styled HTML file for better readability
 - **Full Content**: Includes all messages (user and assistant) from each conversation
-- **Organized Format**: Each conversation saved as a separate text file with formatted content
+- **Attachment Support**: Downloads and embeds images, PDFs, and documents from conversations
+  - ✅ Images (PNG, JPG, GIF, WebP) - Displayed inline in HTML
+  - ✅ PDFs and Documents - Linked for download
+  - Automatically detects file types using magic numbers
 - **Auto-Download**: ZIP file automatically downloads with timestamp: `ChatGPT_Export_YYYY-MM-DD.zip`
 - **Smart Fallback**: API retrieval with DOM extraction fallback for reliability
 
@@ -51,8 +55,13 @@ A Chrome extension to manage your ChatGPT conversations efficiently. Delete mult
 4. Select conversations you want to export
 5. Click **"Export as ZIP"**
 6. Wait for the progress bar to complete
+   - The extension will automatically navigate through conversations with attachments
+   - This ensures all images and files are properly loaded and downloaded
 7. ZIP file automatically downloads
-8. Extract to access all conversations as text files
+8. **Extract the entire ZIP folder** to a location on your computer
+9. Open the HTML files from the extracted folder to view conversations with images and attachments
+
+**Note**: Images and attachments must be extracted from the ZIP before opening HTML files. Browsers cannot access files directly inside ZIP archives.
 
 Export Screenshot:
 
@@ -78,7 +87,9 @@ Export Screenshot:
 #### Export Method
 - **Retrieves content** from ChatGPT API (`/backend-api/conversation/{id}`)
 - **Extracts** all messages with role (USER/ASSISTANT)
-- **Formats** with separators for readability
+- **Automatic Navigation**: For conversations with attachments, navigates to each conversation to load files in the DOM
+- **File Download**: Extracts authenticated file URLs with signature parameters from loaded page
+- **Formats** with separators for readability in styled HTML
 - **Packages** into ZIP using JSZip library
 - **Auto-downloads** with date timestamp
 
@@ -103,6 +114,7 @@ Export Screenshot:
 This extension requires:
 - `activeTab` - To access the active ChatGPT tab
 - `scripting` - To inject content script
+- `tabs` - To navigate between conversations during export
 - Host permissions for `https://chatgpt.com/*` and `https://chat.openai.com/*`
 
 The extension **only** communicates with ChatGPT servers. No data is sent elsewhere.
@@ -116,9 +128,10 @@ The extension **only** communicates with ChatGPT servers. No data is sent elsewh
 - **Example**: 10 conversations deleted in ~1 second with API method
 
 ### Export Speed
-- **Single Conversation**: ~500-800ms
-- **10 Conversations**: ~5-8 seconds
-- **Speed depends on**: Conversation size and content complexity
+- **Single Conversation (no attachments)**: ~500-800ms
+- **Single Conversation (with attachments)**: ~5-10 seconds (includes page navigation and file loading)
+- **Multiple Conversations**: 5-10 seconds per conversation with attachments
+- **Speed depends on**: Conversation size, number of attachments, and page load time
 
 ## Security & Privacy
 
@@ -152,6 +165,8 @@ The extension **only** communicates with ChatGPT servers. No data is sent elsewh
 
 ### Export Not Working?
 - Ensure conversations have content
+- Be patient - the extension navigates through each conversation with attachments (this is normal)
+- Don't close the popup or switch tabs during export
 - Check browser console for errors
 - Verify you have write permissions for downloads
 
@@ -159,8 +174,10 @@ The extension **only** communicates with ChatGPT servers. No data is sent elsewh
 
 - Requires being on ChatGPT page to function
 - Batch deletion speed depends on internet connection
+- Export with attachments is slower due to automatic page navigation (5-10 seconds per conversation with files)
 - Export file size limited by available disk space
 - Conversations must be accessible in your account
+- Do not close the popup or navigate away during export
 
 ## Future Improvements
 
